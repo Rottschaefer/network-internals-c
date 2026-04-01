@@ -1,71 +1,37 @@
 #include <stdio.h>
 #include <pcap.h>
 
-int main(int argc, char *argv[])
-{
-	char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_if_t *devices;
-    pcap_if_t *d;
 
+int main(int argc, char* argv[]){
 
-	//Acha todas as interfaces de rede (bluetooth, Ethernet, mais quais?)
-	pcap_findalldevs(&devices, errbuf);
-	
-	if (devices == NULL) {
-		fprintf(stderr, "Couldn't find default device: %s\n", errbuf);
-		return(2);
-	}
+    char error_buffer[PCAP_ERRBUF_SIZE];
+    pcap_if_t* devices; //Struct de interface de rede
 
-    d = devices;
-    while(d){
-	    printf("Device: %s\n", d->name);
+    pcap_findalldevs(&devices, error_buffer); //Retorna lista encadeada de interfaces. 
 
-		if (d->addresses != NULL && d->addresses->addr != NULL) {
-        	printf("Address: %s\n", d->addresses->addr->sa_data);
-		
-		}       
-		else {
-			printf("Sem address\n");
-		};
-	
-		d = d->next;
- 	}
+    pcap_t* handle = pcap_open_live(devices->name, 262144, 1, 1000, error_buffer); //Faz uma chamada de sistema pra colocar a interface de rede em modo promíscuo e outra pra criar um buffer para qual o SO vai redirecionar todos os pacotes que chegam da interface
 
-	bpf_u_int32 mask;		/* The netmask of our sniffing device */
-	bpf_u_int32 net;		/* The IP of our sniffing device */
+    if(!handle){
+        printf("Erro ao abrir conexão: %s\n", error_buffer);
+    }
+    
+    printf("Device %s\n", devices->name);
 
-	if (pcap_lookupnet(devices->name, &net, &mask, errbuf) == -1) {
-		fprintf(stderr, "Can't get netmask for device %s\n", devices->name);
-		net = 0;
-		mask = 0;
-	}
+    struct pcap_pkthdr header; //Vai armazenar o header do pacote recebido
 
-	pcap_t *handle;
+    const unsigned char* packet; //Ponteiro para o início dos bytes do pacote capturado
 
-	handle = pcap_open_live(devices->name, BUFSIZ, 1, 1000, errbuf);
+    packet = pcap_next(handle, &header);
 
-	if (handle == NULL) {
-		fprintf(stderr, "Couldn't open device %s: %s\n", devices->name, errbuf);
-		return(2);
-	}
+    if(!packet) printf("Erro ao capturar pacote o nenhum pacote chegou");
 
-	if (pcap_datalink(handle) != DLT_EN10MB) {
-	fprintf(stderr, "Device %s doesn't provide Ethernet headers - not supported\n", devices->name);
-	return(2);
-}
+    printf("Pacote de tamanho %d capturado!\n", header.caplen);
 
-	struct bpf_program fp;		/* The compiled filter expression */
-	char filter_exp[] = "port 23";	/* The filter expression */
+    for (int i = 0; i < header.caplen; i++)
+    {
+        printf("\n%2X  ", (packet[i])); //Printa byte por byte do pacote em formato hexadecimal com 2 dígitos
+    }
+    
 
-
-	if (pcap_compile(handle, &fp, filter_exp, 0, net) == -1) {
-		fprintf(stderr, "Couldn't parse filter %s: %s\n", filter_exp, pcap_geterr(handle));
-		return(2);
-	}
-	if (pcap_setfilter(handle, &fp) == -1) {
-		fprintf(stderr, "Couldn't install filter %s: %s\n", filter_exp, pcap_geterr(handle));
-		return(2);
-	}
-
-	return(0);
+    return 0;
 }
