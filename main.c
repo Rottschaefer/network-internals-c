@@ -8,12 +8,16 @@ typedef struct ethernet_header{
 }__attribute__((packed)) ETHERNET_HEADER;
 
 typedef struct ip_header{
-    unsigned char version; //[1 byte] - Versão do IP (IPv4 ou IPv6)(4 bits) + Tamanho do Header em bloco de 4 bytes  (4 bits)
+    unsigned char version_len; //[1 byte] - Versão do IP (IPv4 ou IPv6)(4 bits) + Tamanho do Header em bloco de 4 bytes  (4 bits)
     unsigned char type_service; //[1 byte] - DSCP (Differentiated Services Code Point) que marca a prioridade do pacote (6 bits) + (2 bits) ECN (Explicit Congestion Notification)
     unsigned short length; //[2 bytes] Diz o tamanho do pacote IP (header + data)
     unsigned short id; //[2 bytes] Id pra quando o pacote vem fragmentado
     unsigned short flag_offset; //[2 bytes] flags (3 bits) + (13 bits) de offset, onde 1 de offset significa 1 bloco de 8 bytes
-
+    unsigned char ttl; //[1 byte] Time-to-live
+    unsigned char protocol; //[1 byte]
+    unsigned short checksum; //[2 bytes] 
+    unsigned int source_ip_address; //[4 bytes]
+    unsigned int destination_ip_address; //[4 bytes]
 }__attribute__((packed)) IP_HEADER;
 
 //Tem que tomar cuidado com a questão do Big e Little Endian
@@ -72,9 +76,15 @@ int main(int argc, char* argv[]){
 
     IP_HEADER* ip_hdr = (IP_HEADER*)(packet + sizeof(ETHERNET_HEADER));
 
-    unsigned char ip_version = ip_hdr->version >> 4; //Dessloca 4 bits pra direita pra ler só os 4 bits da versão
+    unsigned char ip_version = ip_hdr->version_len >> 4; //Dessloca 4 bits pra direita pra ler só os 4 bits da versão
 
-    unsigned char ip_hdr_len = ip_hdr->version & 0x0F; //Usa a máscara 00001111 em hexa pra pegar os últimos 4 bits
+    unsigned char ip_hdr_len = ip_hdr->version_len & 0x0F; //Usa a máscara 00001111 em hexa pra pegar os últimos 4 bits
+
+    if(ip_version != 4){
+        printf("\n--- Esse pacote é IPv%d e o programa só suporta IPv4, abortando ---\n\n", ip_version);
+        pcap_close(handle);
+        return 0;
+    }
 
     printf("\n\nVersão IP: %d\n", ip_version);
     printf("Tamanho do cabeçalho IP: %d\n", ip_hdr_len*4);
@@ -94,12 +104,27 @@ int main(int argc, char* argv[]){
     unsigned short flag_offset = inverte_bytes(ip_hdr->flag_offset);
     unsigned char flag = flag_offset >> 13;
     unsigned char flag_reservado = (flag & 0x04)>>2;
-    unsigned char flag_dont_fragment = flag & 0x02>>1;
-    unsigned char flag_more_fragments = flag & 0x01;
+    unsigned char flag_dont_fragment = (flag & 0x02)>>1;
+    unsigned char flag_more_fragments = (flag & 0x01);
     unsigned short offset = (flag_offset & 0x1FFF)*8;
 
     printf("Flags - Reservado: %d - Don't Fragment: %d - More Fragments: %d\n", flag_reservado, flag_dont_fragment, flag_more_fragments);
     printf("Offset: %d\n", offset);
+
+    unsigned int other_len = (ip_hdr_len*4) - 20; //Calculando o tamanho do campo other: o tamanho do header que a gente recebeu - 20bytes(que é o tamanho dos campos que conhecemos o tamanho)
+
+    printf("O pacote tem %d bytes no campo de opções\n", other_len);
+
+    unsigned char* inicio_other = (unsigned char*)(ip_hdr) + 20; 
+
+    for (int i = 0; i < other_len; i++)
+    {
+        printf("%02X - ", inicio_other[i]);
+        break;
+    }
+    
+
+    
 
     // for (int i = 0; i < header.caplen; i++)
     // {
