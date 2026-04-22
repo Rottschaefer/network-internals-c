@@ -12,6 +12,7 @@ typedef struct ip_header{
     unsigned char type_service; //[1 byte] - DSCP (Differentiated Services Code Point) que marca a prioridade do pacote (6 bits) + (2 bits) ECN (Explicit Congestion Notification)
     unsigned short length; //[2 bytes] Diz o tamanho do pacote IP (header + data)
     unsigned short id; //[2 bytes] Id pra quando o pacote vem fragmentado
+    unsigned short flag_offset; //[2 bytes] flags (3 bits) + (13 bits) de offset, onde 1 de offset significa 1 bloco de 8 bytes
 
 }__attribute__((packed)) IP_HEADER;
 
@@ -89,6 +90,16 @@ int main(int argc, char* argv[]){
 
     printf("Tamanho do pacote IP (bytes): %d\n", ip_len);
     printf("ID do pacote IP : %d\n", ip_id);
+
+    unsigned short flag_offset = inverte_bytes(ip_hdr->flag_offset);
+    unsigned char flag = flag_offset >> 13;
+    unsigned char flag_reservado = (flag & 0x04)>>2;
+    unsigned char flag_dont_fragment = flag & 0x02>>1;
+    unsigned char flag_more_fragments = flag & 0x01;
+    unsigned short offset = (flag_offset & 0x1FFF)*8;
+
+    printf("Flags - Reservado: %d - Don't Fragment: %d - More Fragments: %d\n", flag_reservado, flag_dont_fragment, flag_more_fragments);
+    printf("Offset: %d\n", offset);
 
     // for (int i = 0; i < header.caplen; i++)
     // {
